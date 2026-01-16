@@ -134,5 +134,63 @@ def get_system_stats() -> str:
     
     return json.dumps(stats, indent=2)
 
+@mcp.tool()
+def add_journal_entry(entry: str, category: str = "General", ctx: Context = None) -> str:
+    """
+    Append a note to the daily journal.
+    
+    Args:
+        entry: The content of the note.
+        category: Optional category (e.g., "Work", "Idea", "Health").
+    """
+    journal_dir = Path.home() / "journal"
+    journal_dir.mkdir(exist_ok=True)
+    
+    today = datetime.now().strftime("%Y-%m-%d")
+    journal_file = journal_dir / f"{today}.md"
+    
+    timestamp = datetime.now().strftime("%H:%M")
+    line = f"- [{timestamp}] **{category}**: {entry}\n"
+    
+    with open(journal_file, "a") as f:
+        f.write(line)
+        
+    msg = f"Added to journal ({today}): {entry[:30]}..."
+    if ctx:
+        ctx.info(msg)
+    return msg
+
+@mcp.tool()
+def get_calendar_events(days: int = 1) -> str:
+    """
+    Get calendar events for the next N days.
+    Uses 'icalbuddy' CLI if available on macOS.
+    """
+    # Check for icalbuddy
+    import subprocess
+    import shutil
+    
+    if not shutil.which("icalbuddy"):
+        return "Tool 'icalbuddy' not found. Please install it (brew install ical-buddy) to read macOS Calendar."
+    
+    try:
+        # icalbuddy arguments: 
+        # eventsToday+N: events for today + N days
+        # -nc: no calendar names (optional, but keeps it cleaner)
+        # -n: include notes
+        cmd = ["icalbuddy", f"eventsToday+{days}", "-nc", "-n"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            return f"Error reading calendar: {result.stderr}"
+            
+        output = result.stdout.strip()
+        if not output:
+             return "No events found."
+             
+        return output
+    except Exception as e:
+        return f"Failed to execute icalbuddy: {str(e)}"
+
 if __name__ == "__main__":
     mcp.run()
